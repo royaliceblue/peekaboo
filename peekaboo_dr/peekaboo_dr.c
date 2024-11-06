@@ -61,6 +61,9 @@
 			// KH: It actually stores 0 into gpr.reg_rip
 			regfile_ptr->gpr.reg_rip = (uint64_t) mc->xip;
 			//printf("czl:%p\n", regfile_ptr->gpr.reg_rip);
+            
+            // Read and log memory contents at register addresses
+            log_registers_and_memory(regfile_ptr);
 
 			// here, we cast the simd structure into an array of uint256_t
 			#ifdef _STORE_SIMD
@@ -185,6 +188,73 @@ static void flush_map(void *drcontext, void *buf_base, size_t size)
 }
 
 */
+
+void log_registers_and_memory(regfile_t *regfile_ptr)
+{
+    // Array of register names
+    const char *gpr_names[] = {
+        "rdi", "rsi", "rsp", "rbp", "rbx", "rdx", "rcx", "rax",
+        "r8 ", "r9 ", "r10", "r11", "r12", "r13", "r14", "r15",
+        "rflags", "rip"
+    };
+
+    // Array of register values
+    uint64_t gpr_values[] = {
+        regfile_ptr->gpr.reg_rdi,
+        regfile_ptr->gpr.reg_rsi,
+        regfile_ptr->gpr.reg_rsp,
+        regfile_ptr->gpr.reg_rbp,
+        regfile_ptr->gpr.reg_rbx,
+        regfile_ptr->gpr.reg_rdx,
+        regfile_ptr->gpr.reg_rcx,
+        regfile_ptr->gpr.reg_rax,
+        regfile_ptr->gpr.reg_r8,
+        regfile_ptr->gpr.reg_r9,
+        regfile_ptr->gpr.reg_r10,
+        regfile_ptr->gpr.reg_r11,
+        regfile_ptr->gpr.reg_r12,
+        regfile_ptr->gpr.reg_r13,
+        regfile_ptr->gpr.reg_r14,
+        regfile_ptr->gpr.reg_r15,
+        regfile_ptr->gpr.reg_rflags,
+        regfile_ptr->gpr.reg_rip
+    };
+
+    // Number of general-purpose registers
+    int num_regs = sizeof(gpr_values) / sizeof(gpr_values[0]);
+
+    // Print the header
+    printf("\tRegisters and Memory Contents:\n");
+
+    // Iterate over each register
+    for (int i = 0; i < num_regs; i++)
+    {
+        uint64_t reg_value = gpr_values[i];
+        printf("\t  %s: 0x%016" PRIx64, gpr_names[i], reg_value);
+
+        // Skip reading memory for rflags and rip (they are not pointers)
+        if (strcmp(gpr_names[i], "rflags") == 0 || strcmp(gpr_names[i], "rip") == 0)
+        {
+            printf("\n");
+            continue;
+        }
+
+        // Safely read memory at the register value
+        uint64_t mem_value = 0;
+        size_t bytes_read = 0;
+
+        // Use dr_safe_read to prevent crashes
+        if (dr_safe_read((void *)reg_value, sizeof(mem_value), &mem_value, &bytes_read))
+        {
+            printf(" -> Memory[0x%016" PRIx64 "]: 0x%016" PRIx64 "\n", reg_value, mem_value);
+        }
+        else
+        {
+            printf(" -> Memory[0x%016" PRIx64 "]: [Invalid Memory Access]\n", reg_value);
+        }
+    }
+    printf("\n");
+}
 
 
 // KH: This function actually messes up the buffer flush. Need to fix it! 
